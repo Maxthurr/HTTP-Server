@@ -1,0 +1,11 @@
+tags
+*.o
+testsuite
+httpd
+*.h.gch
+*.gcda
+*.gcno
+*.info
+.vscode
+*.so
+test_game
