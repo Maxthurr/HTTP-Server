@@ -1,0 +1,9 @@
+tags
+*.o
+testsuite
+*.h.gch
+*.gcda
+*.gcno
+*.info
+.vscode
+*.so

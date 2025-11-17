@@ -1,0 +1,17 @@
+Checks: >
+  include-cleaner-*,
+  google-readability-casting,
+  readability-isolate-declaration,
+  readability-function-size
+
+WarningsAsErrors: >
+  include-cleaner-*,
+  google-readability-casting,
+  readability-isolate-declaration,
+  readability-function-size
+
+CheckOptions:
+  - key: readability-function-size.StatementThreshold
+    value: "30"
+  - key: readability-function-size.ParameterThreshold
+    value: "4"
