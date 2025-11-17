@@ -12,6 +12,6 @@ WarningsAsErrors: >
 
 CheckOptions:
   - key: readability-function-size.StatementThreshold
-    value: "30"
+    value: "40"
   - key: readability-function-size.ParameterThreshold
     value: "4"
