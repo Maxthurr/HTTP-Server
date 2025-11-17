@@ -57,14 +57,21 @@ if [ -z "$PATH_CONFIG" ]; then
     usage
 fi
 
-! [ -f "$PATH_CONFIG" ] && (echo "config file: $PATH_CONFIG is not a file"; exit 1;)
+if [ ! -f "$PATH_CONFIG" ]; then
+    echo "config file: $PATH_CONFIG is not a file"
+    exit 1
+fi
 PATH_BIN_TO_RUN="$PATH_BIN"
 
 if [[ "$PATH_BIN_TO_RUN" != */* ]]; then
     PATH_BIN_TO_RUN="./$PATH_BIN_TO_RUN"
 fi
 
-[ -x "$PATH_BIN_TO_RUN" ] || (echo "error: binary file: '$PATH_BIN_TO_RUN' is not executable or does not exist."; exit 1;)
+
+if [ ! -x "$PATH_BIN_TO_RUN" ]; then
+    echo "error: binary file: '$PATH_BIN_TO_RUN' is not executable or does not exist."
+    exit 1
+fi
 
 PATH_BIN="$PATH_BIN_TO_RUN"
 
@@ -72,15 +79,16 @@ PATH_BIN="$PATH_BIN_TO_RUN"
 ARGS=""
 regex="([^ ]+) ?= ?([^ ]+)"
 
-while IFS= read -r line || [[ -n "$line" ]];
-do
-  [ "$line" = "[global]" ] || [ "$line" = "[[vhosts]]" ] && continue;
+while IFS= read -r line || [[ -n "$line" ]]; do
+        [ "$line" = "[global]" ] || [ "$line" = "[[vhosts]]" ] && continue
 
-  if [[ $line =~ $regex ]]; then
-    ARGS="$ARGS --${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
-  fi
+        if [[ $line =~ $regex ]]; then
+                ARGS="$ARGS --${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+        fi
 done < "$PATH_CONFIG"
 
 # launch binary with correct args
-echo "command run is: $PATH_BIN $DAEMON_OPTS ${ARGS:1}"
-$PATH_BIN $DAEMON_OPTS ${ARGS:1}
+# populate positional parameters with all arguments, then exec the binary
+set -- $DAEMON_OPTS ${ARGS:1}
+echo "command run is: $PATH_BIN $*"
+exec "$PATH_BIN" "$@"

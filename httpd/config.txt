@@ -1,5 +1,6 @@
 [global]
-log = true
+log_file = ../../log_file.txt
+log = nottrue
 pid_file = /tmp/HTTPd.pid
 
 [[vhosts]]
@@ -7,3 +8,4 @@ server_name = my_server
 ip = 127.0.0.1
 port = 6996
 root_dir = .
+default_file = new_default.html

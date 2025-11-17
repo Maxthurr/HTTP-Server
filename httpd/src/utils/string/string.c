@@ -20,6 +20,9 @@ int string_compare_n_str(const struct string *str1, const char *str2, size_t n)
 
 void string_concat_str(struct string *str, const char *to_concat, size_t size)
 {
+    if (!size)
+        return;
+
     str->data = realloc(str->data, (str->size + size) * sizeof(char));
     memcpy(str->data + size, to_concat, size);
 }
