@@ -78,6 +78,7 @@ static bool parse_options(int argc, char **argv, struct option *options,
             if (!handle_daemon(config, optarg))
                 return false;
             break;
+        default:
         case '?':
             return false;
             break;
