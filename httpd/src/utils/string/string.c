@@ -24,7 +24,8 @@ void string_concat_str(struct string *str, const char *to_concat, size_t size)
         return;
 
     str->data = realloc(str->data, (str->size + size) * sizeof(char));
-    memcpy(str->data + size, to_concat, size);
+    memcpy(str->data + str->size, to_concat, size);
+    str->size += size;
 }
 
 void string_destroy(struct string *str)
