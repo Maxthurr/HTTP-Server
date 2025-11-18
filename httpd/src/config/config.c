@@ -20,7 +20,7 @@ enum opt
     DAEMON
 };
 
-static enum daemon handle_daemon(struct config *config, char *arg)
+static bool handle_daemon(struct config *config, char *arg)
 {
     if (!strcmp("start", arg))
     {
@@ -60,7 +60,8 @@ static bool parse_options(int argc, char **argv, struct option *options,
             break;
         case SERVER_NAME:
             config->servers->server_name =
-                string_create(optarg, strlen(optarg));
+                string_create(optarg, strlen(optarg) + 1);
+            config->servers->server_name->data[strlen(optarg)] = '\0';
             break;
         case PORT:
             config->servers->port = strdup(optarg);
@@ -104,6 +105,7 @@ struct config *parse_configuration(int argc, char *argv[])
 
     struct config *config = calloc(1, sizeof(struct config));
     config->servers = calloc(1, sizeof(struct server_config));
+    config->log = true;
 
     if (!parse_options(argc, argv, options, config) || !config->pid_file
         || !config->servers->server_name || !config->servers->port
