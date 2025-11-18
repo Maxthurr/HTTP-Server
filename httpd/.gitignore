@@ -3,6 +3,7 @@ tags
 testsuite
 httpd
 *.h.gch
+*.out
 *.gcda
 *.gcno
 *.info
