@@ -3,6 +3,7 @@
 #include "server.h"
 
 #include <err.h>
+#include <errno.h>
 #include <netdb.h>
 #include <signal.h>
 #include <stdio.h>
@@ -13,15 +14,22 @@
 #include <unistd.h>
 
 #include "../config/config.h"
+#include "../logger/logger.h"
 #include "../utils/string/string.h"
 
-static void handle_sigpipe(int sig)
+static int sfd = -1;
+static struct config *g_config = NULL;
+
+static void handle_signals(int sig)
 {
     switch (sig)
     {
-    case SIGPIPE:
-        // TODO cleanup after closed connection
-        printf("User disconnected (SIGPIPE received)\n");
+    case SIGINT:
+    case SIGTERM:
+        // Graceful shutdown
+        logger_log(g_config,
+                   "-- Received termination signal, shutting down...\n");
+        stop_server(sfd, g_config);
         break;
     default:
         // Unsupported signal
@@ -42,14 +50,18 @@ static struct addrinfo *get_ai(const struct server_config *config)
     struct addrinfo *result;
     int err = getaddrinfo(node, config->port, &hints, &result);
     if (err != 0)
-        errx(EXIT_FAILURE, "%s", gai_strerror(err));
+    {
+        logger_log(g_config, gai_strerror(err));
+        return NULL;
+    }
 
     return result;
 }
 
 static int create_socket(struct addrinfo *addr)
 {
-    int sfd;
+    if (!addr)
+        return -1;
     int e;
 
     struct addrinfo *p;
@@ -65,7 +77,7 @@ static int create_socket(struct addrinfo *addr)
         if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1)
         {
             freeaddrinfo(addr);
-            err(EXIT_FAILURE, "setsockopt()");
+            logger_log(g_config, strerror(errno));
         }
 
         // Bind socket to address
@@ -80,16 +92,20 @@ static int create_socket(struct addrinfo *addr)
 
     // If no socket could be created and bound, exit with error
     if (p == NULL)
-        errx(EXIT_FAILURE, "Could not bind a socket");
+    {
+        logger_log(g_config, "-- Could not bind a socket");
+        return -1;
+    };
 
     return sfd;
 }
 
-int start_server(const struct server_config *config)
+int start_server(struct config *config)
 {
+    g_config = config;
     struct sigaction sa = { 0 };
     sa.sa_flags = SA_RESTART;
-    sa.sa_handler = handle_sigpipe;
+    sa.sa_handler = SIG_IGN;
 
     // Ignore SIGPIPE to prevent server crash on client disconnect
     if (sigemptyset(&sa.sa_mask) == -1 || sigaction(SIGPIPE, &sa, NULL) == -1)
@@ -97,50 +113,76 @@ int start_server(const struct server_config *config)
         err(EXIT_FAILURE, "sigaction");
     }
 
+    // Handle SIGINT and SIGTERM for graceful shutdown
+    sa.sa_flags = 0;
+    sa.sa_handler = handle_signals;
+    if (sigaction(SIGINT, &sa, NULL) == -1
+        || sigaction(SIGTERM, &sa, NULL) == -1)
+    {
+        logger_log(config, strerror(errno));
+        return -1;
+    }
+
     // Open socket
-    int sfd = create_socket(get_ai(config));
+    sfd = create_socket(get_ai(config->servers));
     return sfd;
 }
 
-void stop_server(int server_fd)
+void stop_server(int server_fd, struct config *config)
 {
     close(server_fd);
+    logger_destroy();
+    config_destroy(config);
 }
 
-int accept_connection(int sfd)
+int accept_connection(int sfd, struct config *config)
 {
     int e = listen(sfd, 5);
     if (e == -1)
     {
         close(sfd);
-        err(EXIT_FAILURE, "listen");
+        logger_log(config, strerror(errno));
+        return 1;
     }
 
     while (1)
     {
-        printf("Waiting for connections...\n");
+        logger_log(config, "-- Waiting for connections...\n");
         int cfd = accept(sfd, NULL, NULL);
         if (cfd == -1)
-            err(EXIT_FAILURE, "accept()");
+        {
+            close(sfd);
+            logger_log(config, strerror(errno));
+            return 1;
+        }
 
-        printf("Connection successful\n");
+        logger_log(config, "-- Connection successful\n");
 
         ssize_t n;
         char buf[1024];
+        // Receive data from client
         while ((n = recv(cfd, buf, sizeof(buf) - 1, 0)) > 0)
         {
             struct string *string = string_create(buf, n + 1);
             string->data[n] =
                 '\0'; //! This is only for debugging and should be removed later
+            // Current behabior: echo back received data
+            // TODO: Change to proper HTTP response
             send(cfd, string->data, string->size, MSG_NOSIGNAL);
-            printf("Received %zd bytes: %s. Sending back to client.\n",
-                   string->size, string->data);
+
+            // Log received data
+            char msg[256];
+            snprintf(msg, sizeof(msg),
+                     "Received %zd bytes: %s. Sending back to client.\n",
+                     string->size, string->data);
+            logger_log(config, msg);
+
             string_destroy(string);
         }
 
         close(cfd);
     }
 
-    stop_server(sfd);
+    stop_server(sfd, config);
     return 0;
 }

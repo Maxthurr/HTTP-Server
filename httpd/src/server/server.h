@@ -3,8 +3,8 @@
 
 #include "../config/config.h"
 
-int start_server(const struct server_config *config);
-void stop_server(int server_fd);
-int accept_connection(int sfd);
+int start_server(struct config *config);
+void stop_server(int server_fd, struct config *config);
+int accept_connection(int sfd, struct config *config);
 
 #endif /* ! SERVER_H */
