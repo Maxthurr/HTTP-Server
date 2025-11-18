@@ -10,3 +10,4 @@ httpd
 .vscode
 *.so
 test_game
+*.log
