@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "../src/config/config.h"
+#include "../src/server/server.h"
 #include "../src/utils/string/string.h"
 
 int main(int argc, char **argv)

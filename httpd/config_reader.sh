@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 usage() {
     echo "Usage: $0 --path-config <file> [--path-bin <bin>] [--daemon <options>]"
