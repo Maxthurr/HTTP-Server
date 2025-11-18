@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "../src/config/config.h"
+#include "../src/daemon/daemon.h"
+#include "../src/logger/logger.h"
 #include "../src/server/server.h"
 #include "../src/utils/string/string.h"
 
@@ -80,15 +82,43 @@ int main(int argc, char **argv)
     struct config *config = parse_configuration(argc, argv);
     print_config(config);
 
-    printf("\n-- Starting server...\n");
-    int server_fd = start_server(config->servers);
-    printf("-- Server started on fd: %d\n", server_fd);
-    int e = accept_connection(server_fd);
-    if (e == -1)
-        printf("Error accepting connections.\n");
+    logger_init(config);
 
-    stop_server(server_fd);
-    config_destroy(config);
+    switch (config->daemon)
+    {
+    case START:
+        printf("\n-- Starting daemon\n");
+        if (start_daemon(config))
+            return 1;
+        break;
+    case STOP:
+        printf("\n-- Stopping daemon\n");
+        stop_daemon(config);
+        logger_destroy();
+        config_destroy(config);
+        return 0;
+    case RESTART:
+        printf("\n-- Restarting daemon\n");
+        restart_daemon(config);
+        break;
+    case NO_OPTION:
+    default:
+        printf("\n-- No daemon option specified.\n");
+        break;
+    }
 
-    return 0;
+    logger_log(config, "\n-- Starting server...\n");
+    int server_fd = start_server(config);
+
+    if (server_fd != -1)
+    {
+        logger_log(config, "-- Server started.\n");
+        int e = accept_connection(server_fd, config);
+        if (e == -1)
+            logger_log(config, "-- Error accepting connections.\n");
+
+        return 0;
+    }
+
+    return 1;
 }
