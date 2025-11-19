@@ -4,9 +4,10 @@ SRCS=src/main.c src/config/config.c src/logger/logger.c src/server/server.c src/
 OBJS=$(SRCS:.c=.o)
 TARGET=httpd
 
-# Unit test settings
-TEST_SRCS=tests/unit_tests/http_parser_tests.c src/utils/string/string.c src/http/parser.c src/config/config.c
-TEST_TARGET=tests/http_parser_tests
+TEST_SOURCES := $(wildcard tests/unit_tests/*.c)
+TEST_SUPPORT := src/utils/string/string.c src/http/parser.c src/http/response_generator.c src/config/config.c
+TEST_BIN_DIR := tests
+TEST_BINS := $(patsubst tests/unit_tests/%.c,$(TEST_BIN_DIR)/%,$(TEST_SOURCES))
 
 httpd: $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET)
@@ -20,11 +21,15 @@ debug: $(OBJS)
 check: CFLAGS += -fsanitize=address -g
 check: LDLIBS += -lcriterion
 check: LDFLAGS += -fsanitize=address
-check: $(TEST_TARGET)
-	./$(TEST_TARGET) || true
+check: $(TEST_BINS)
+	@echo "Running $(TEST_BINS)"
+	@for t in $(TEST_BINS); do \
+		./$$t || true; \
+	done
 
-$(TEST_TARGET): $(TEST_SRCS)
-	$(CC) $(CFLAGS) $^ -o $(TEST_TARGET) $(LDLIBS) -lcriterion
+# Pattern rule: build a test binary for each test source file
+$(TEST_BIN_DIR)/%: tests/unit_tests/%.c $(TEST_SUPPORT)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDLIBS) -lcriterion
 
 clean:
-	$(RM) $(OBJS) $(TARGET) $(TEST_TARGET)
+	$(RM) $(OBJS) $(TARGET) $(TEST_BINS)
