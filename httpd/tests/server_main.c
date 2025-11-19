@@ -103,19 +103,19 @@ int main(int argc, char **argv)
         break;
     case NO_OPTION:
     default:
-        printf("\n-- No daemon option specified.\n");
+        printf("\n-- No daemon option specified.");
         break;
     }
 
-    logger_log(config, "\n-- Starting server...\n");
+    logger_log(config, "-- Starting server...");
     int server_fd = start_server(config);
 
     if (server_fd != -1)
     {
-        logger_log(config, "-- Server started.\n");
+        logger_log(config, "-- Server started.");
         int e = accept_connection(server_fd, config);
         if (e == -1)
-            logger_log(config, "-- Error accepting connections.\n");
+            logger_log(config, "-- Error accepting connections.");
 
         return 0;
     }
