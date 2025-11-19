@@ -39,13 +39,11 @@ struct response_header
     struct string *status;
     struct string *date;
     off_t content_length;
-    struct string *connection;
 };
 
 struct request_header *parse_request(struct string *request);
 void destroy_request(struct request_header *request);
-struct response_header *create_response(const struct config *config,
-                                        const struct request_header *request,
+struct response_header *create_response(const struct request_header *request,
                                         off_t content_length);
 void destroy_response(struct response_header *response);
 
