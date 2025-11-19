@@ -1,0 +1,229 @@
+#include <ctype.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../utils/string/string.h"
+#include "http.h"
+
+static enum http_method get_method(const char *data, size_t size)
+{
+    if (size >= 3 && !memcmp(data, "GET", 3))
+        return GET;
+    if (size >= 4 && !memcmp(data, "HEAD", 4))
+        return HEAD;
+
+    return UNKNOWN;
+}
+
+static size_t get_filename_length(const char *data, size_t size, size_t start)
+{
+    size_t i = start;
+    while (i < size && data[i] != ' ')
+        i++;
+
+    if (i == size)
+        return 0;
+
+    return i - start;
+}
+
+static bool end_of_header(struct string *request, size_t index)
+{
+    return request->data[index] == '\r' && request->data[index + 1] == '\n';
+}
+
+static bool is_valid_field__name_char(char c)
+{
+    if (isalnum(c))
+        return true;
+
+    switch (c)
+    {
+    case '!':
+    case '#':
+    case '$':
+    case '%':
+    case '&':
+    case '\'':
+    case '*':
+    case '+':
+    case '-':
+    case '.':
+    case '^':
+    case '_':
+    case '`':
+    case '|':
+    case '~':
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool is_valid_header_line(struct string *request, size_t index)
+{
+    char *data = request->data;
+    // A valid header line must contain a colon ':'
+    while (index + 1 < request->size
+           && !(data[index] == '\r' && data[index + 1] == '\n')
+           && is_valid_field__name_char(data[index]))
+    {
+        index++;
+    }
+
+    return index + 1 < request->size && data[index] == ':';
+}
+
+static bool parse_host_field(struct string *request, size_t *index,
+                             struct request_header *req_header)
+{
+    char *data = request->data;
+    size_t i = *index + 5; // Skip field name "Host:"
+
+    // Skip spaces after colon
+    while (i < request->size && (data[i] == ' ' || data[i] == '\t'))
+        i++;
+
+    size_t start = i;
+    // Get length of host field value
+    while (i < request->size && !(data[i] == '\r' && data[i + 1] == '\n'))
+        i++;
+
+    // Unfinished header
+    if (i >= request->size)
+    {
+        req_header->status = BAD_REQUEST;
+        return false;
+    }
+
+    req_header->host = string_create(data + start, i - start);
+    *index = i + 2; // Go to field file
+    return true;
+}
+
+static void parse_headers(struct string *request, size_t i,
+                          struct request_header *req_header)
+{
+    char *data = request->data;
+    while (!end_of_header(request, i))
+    {
+        // Host field line
+        if (i + 5 < request->size && string_n_casecmp(data + i, "Host:", 5))
+        {
+            if (!parse_host_field(request, &i, req_header))
+            {
+                req_header->status = BAD_REQUEST;
+                return;
+            }
+        }
+        // Check validity of other field lines
+        else if (!is_valid_header_line(request, i))
+        {
+            req_header->status = BAD_REQUEST;
+            return;
+        }
+
+        // Move to next line
+        while (i + 1 < request->size
+               && !(data[i] == '\r' && data[i + 1] == '\n'))
+            i++;
+    }
+}
+
+static void parse_filename(struct string *request, size_t *i,
+                           struct request_header *req_header)
+{
+    size_t filename_len = get_filename_length(request->data, request->size, *i);
+    if (filename_len == 0)
+    {
+        req_header->status = BAD_REQUEST;
+        return;
+    }
+
+    req_header->filename = string_create(request->data + *i, filename_len);
+    *i += req_header->filename->size;
+}
+
+static void parse_version(struct string *request, size_t *i,
+                          struct request_header *req_header)
+{
+    if (*i == request->size || request->data[(*i)++] != ' '
+        || (request->data[*i] == '\r' && request->data[*i + 1] == '\n'))
+    {
+        req_header->status = BAD_REQUEST;
+        return;
+    }
+
+    req_header->version = string_create(request->data + *i, 8); // "HTTP/x.x"
+    if (memcmp(req_header->version->data, HTTP_VERSION, 8))
+    {
+        req_header->status = UNSUPPORTED_VERSION;
+        return;
+    }
+
+    *i += req_header->version->size;
+}
+
+static size_t parse_start(struct string *request,
+                          struct request_header *req_header)
+{
+    size_t i = 0;
+    req_header->method = get_method(request->data, request->size);
+    if (req_header->method == UNKNOWN)
+    {
+        req_header->status = METHOD_NOT_ALLOWED;
+        return 0;
+    }
+
+    i += req_header->method == GET ? 3 : 4;
+
+    if (i == request->size || request->data[i++] != ' '
+        || (request->data[i] == '\r' && request->data[i + 1] == '\n'))
+    {
+        req_header->status = BAD_REQUEST;
+        return 0;
+    }
+
+    parse_filename(request, &i, req_header);
+    parse_version(request, &i, req_header);
+
+    if (i + 2 >= request->size || request->data[i] != '\r'
+        || request->data[i + 1] != '\n')
+    {
+        req_header->status = BAD_REQUEST;
+        return 0;
+    }
+    i += 2;
+
+    return i;
+}
+
+struct request_header *parse_request(struct string *request)
+{
+    if (!request || request->size == 0)
+        return NULL;
+
+    struct request_header *req_header =
+        calloc(1, sizeof(struct request_header));
+
+    req_header->status = OK;
+    size_t i = parse_start(request, req_header);
+    if (req_header->status != OK)
+        return req_header;
+
+    parse_headers(request, i, req_header);
+    return req_header;
+}
+
+void destroy_request(struct request_header *request)
+{
+    if (!request)
+        return;
+
+    string_destroy(request->filename);
+    string_destroy(request->version);
+    string_destroy(request->host);
+    free(request);
+}
