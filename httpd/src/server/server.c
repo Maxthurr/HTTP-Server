@@ -28,7 +28,7 @@ static void handle_signals(int sig)
     case SIGTERM:
         // Graceful shutdown
         logger_log(g_config,
-                   "-- Received termination signal, shutting down...\n");
+                   "-- Received termination signal, shutting down...");
         stop_server(sfd, g_config);
         break;
     default:
@@ -147,7 +147,7 @@ int accept_connection(int sfd, struct config *config)
 
     while (1)
     {
-        logger_log(config, "-- Waiting for connections...\n");
+        logger_log(config, "-- Waiting for connections...");
         int cfd = accept(sfd, NULL, NULL);
         if (cfd == -1)
         {
@@ -156,7 +156,7 @@ int accept_connection(int sfd, struct config *config)
             return 1;
         }
 
-        logger_log(config, "-- Connection successful\n");
+        logger_log(config, "-- Connection successful");
 
         ssize_t n;
         char buf[1024];
@@ -173,7 +173,7 @@ int accept_connection(int sfd, struct config *config)
             // Log received data
             char msg[256];
             snprintf(msg, sizeof(msg),
-                     "Received %zd bytes: %s. Sending back to client.\n",
+                     "Received %zd bytes: %s. Sending back to client.",
                      string->size, string->data);
             logger_log(config, msg);
 

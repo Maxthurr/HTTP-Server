@@ -48,13 +48,13 @@ int start_daemon(struct config *config)
     char msg[256];
     if (pid_exists(config))
     {
-        sprintf(msg, "A daemon is already running with same PID file (%s).\n",
+        sprintf(msg, "A daemon is already running with same PID file (%s).",
                 config->pid_file);
         logger_log(config, msg);
         return 1;
     }
 
-    sprintf(msg, "Starting daemon with PID file: %s\n", config->pid_file);
+    sprintf(msg, "Starting daemon with PID file: %s", config->pid_file);
     logger_log(config, msg);
 
     pid_t pid = fork();
@@ -82,7 +82,7 @@ int stop_daemon(struct config *config)
     FILE *pid_file = fopen(config->pid_file, "r");
     if (!pid_file)
     {
-        printf("PID file not found: %s.\n", config->pid_file);
+        printf("PID file not found: %s.", config->pid_file);
         return 0;
     }
 
