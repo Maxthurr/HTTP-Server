@@ -39,8 +39,6 @@ void logger_log(const struct config *config, const char *message)
     strftime(time_str, sizeof(time_str), "%a, %d %b %Y %H:%M:%S GMT", tm_info);
     fprintf(log_file, "%s [%s] %s\n", time_str,
             config->servers->server_name->data, message);
-
-    fflush(log_file);
 }
 
 void logger_destroy(void)
