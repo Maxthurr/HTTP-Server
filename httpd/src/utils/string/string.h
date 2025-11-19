@@ -2,6 +2,7 @@
 #define STRING_H
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 struct string
@@ -41,6 +42,15 @@ int string_compare_n_str(const struct string *str1, const char *str2, size_t n);
  ** @param size
  */
 void string_concat_str(struct string *str, const char *to_concat, size_t size);
+
+/*
+ ** @brief Perform same operation as strncasecmp(3)
+ **
+ ** @param s1
+ ** @param s2
+ ** @param n
+ */
+bool string_n_casecmp(const char *s1, const char *s2, size_t n);
 
 void string_destroy(struct string *str);
 
