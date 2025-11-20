@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../src/config/config.h"
-#include "../src/daemon/daemon.h"
-#include "../src/logger/logger.h"
-#include "../src/server/server.h"
-#include "../src/utils/string/string.h"
+#include "config/config.h"
+#include "daemon/daemon.h"
+#include "logger/logger.h"
+#include "server/server.h"
+#include "utils/string/string.h"
 
 void print_server_config(struct config *config)
 {
