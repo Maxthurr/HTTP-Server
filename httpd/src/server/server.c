@@ -186,7 +186,7 @@ static void send_data(const struct config *config, int cfd, int fd,
 static void handle_request(const struct config *config, struct string *request,
                            struct string *sender, int cfd)
 {
-    struct request_header *req_header = parse_request(request);
+    struct request_header *req_header = parse_request(request, config);
 
     logger_request(config, req_header, sender);
 
