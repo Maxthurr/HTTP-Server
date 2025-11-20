@@ -137,13 +137,11 @@ static void parse_filename(struct string *request, size_t *i,
 {
     size_t filename_len = get_filename_length(request->data, request->size, *i);
     if (filename_len == 0)
-    {
         req_header->status = BAD_REQUEST;
-        return;
-    }
 
-    req_header->filename = string_create(request->data + *i, filename_len);
-    *i += req_header->filename->size;
+    req_header->filename = string_create(request->data + *i, filename_len + 1);
+    req_header->filename->data[filename_len] = '\0';
+    *i += filename_len;
 }
 
 static void parse_version(struct string *request, size_t *i,
@@ -151,17 +149,11 @@ static void parse_version(struct string *request, size_t *i,
 {
     if (*i == request->size || request->data[(*i)++] != ' '
         || (request->data[*i] == '\r' && request->data[*i + 1] == '\n'))
-    {
         req_header->status = BAD_REQUEST;
-        return;
-    }
 
     req_header->version = string_create(request->data + *i, 8); // "HTTP/x.x"
     if (memcmp(req_header->version->data, HTTP_VERSION, 8))
-    {
         req_header->status = UNSUPPORTED_VERSION;
-        return;
-    }
 
     *i += req_header->version->size;
 }
@@ -172,29 +164,21 @@ static size_t parse_start(struct string *request,
     size_t i = 0;
     req_header->method = get_method(request->data, request->size);
     if (req_header->method == UNKNOWN)
-    {
         req_header->status = METHOD_NOT_ALLOWED;
-        return 0;
-    }
 
     i += req_header->method == GET ? 3 : 4;
 
     if (i == request->size || request->data[i++] != ' '
         || (request->data[i] == '\r' && request->data[i + 1] == '\n'))
-    {
         req_header->status = BAD_REQUEST;
-        return 0;
-    }
 
     parse_filename(request, &i, req_header);
     parse_version(request, &i, req_header);
 
     if (i + 2 >= request->size || request->data[i] != '\r'
         || request->data[i + 1] != '\n')
-    {
         req_header->status = BAD_REQUEST;
-        return 0;
-    }
+
     i += 2;
 
     return i;
@@ -214,6 +198,7 @@ struct request_header *parse_request(struct string *request)
         return req_header;
 
     parse_headers(request, i, req_header);
+
     return req_header;
 }
 
