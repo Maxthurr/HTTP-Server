@@ -36,13 +36,15 @@ struct request_header
 
 struct response_header
 {
+    enum request_status status_code;
     struct string *status;
     struct string *date;
     off_t content_length;
 };
 
 // HTTP Request
-struct request_header *parse_request(struct string *request);
+struct request_header *parse_request(struct string *request,
+                                     const struct config *config);
 void destroy_request(struct request_header *request);
 
 // HTTP Response

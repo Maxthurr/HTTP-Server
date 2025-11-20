@@ -52,6 +52,7 @@ struct response_header *create_response(const struct request_header *request,
     response->date = string_create(time_str, strlen(time_str));
 
     response->content_length = content_length;
+    response->status_code = request->status;
     return response;
 }
 
@@ -69,6 +70,14 @@ struct string *response_header_to_string(const struct response_header *response)
     string_concat_str(header, "Date: ", strlen("Date: "));
     string_concat_str(header, response->date->data, response->date->size);
     string_concat_str(header, field_end, field_end_len);
+
+    if (response->status_code == METHOD_NOT_ALLOWED)
+    {
+        // Allow line for 405 Method Not Allowed
+        string_concat_str(header, "Allow: GET, HEAD\r\n",
+                          strlen("Allow: GET, HEAD\r\n"));
+    }
+
     // Content-Length line
     char content_length_str[50];
     sprintf(content_length_str, "Content-Length: %ld\r\n",

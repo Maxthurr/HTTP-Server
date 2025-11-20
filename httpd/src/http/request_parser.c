@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../config/config.h"
 #include "../utils/string/string.h"
 #include "http.h"
 
@@ -81,10 +82,6 @@ static bool is_valid_header_line(struct string *request, size_t index)
 static bool parse_host_field(struct string *request, size_t *index,
                              struct request_header *req_header)
 {
-    // Only one Host field is allowed
-    if (req_header->host != NULL)
-        return false;
-
     char *data = request->data;
     size_t i = *index + 5; // Skip field name "Host:"
 
@@ -102,7 +99,6 @@ static bool parse_host_field(struct string *request, size_t *index,
         return false;
 
     req_header->host = string_create(data + start, i - start);
-    *index = i + 2; // Go to field file
     return true;
 }
 
@@ -117,7 +113,7 @@ static void parse_headers(struct string *request, size_t i,
         // Host field line
         if (i + 5 < request->size && string_n_casecmp(data + i, "Host:", 5))
         {
-            if (!parse_host_field(request, &i, req_header))
+            if (req_header->host || !parse_host_field(request, &i, req_header))
             {
                 req_header->status = BAD_REQUEST;
                 return;
@@ -131,9 +127,11 @@ static void parse_headers(struct string *request, size_t i,
         }
 
         // Move to next line
-        while (i + 1 < request->size
+        while (i + 2 < request->size
                && !(data[i] == '\r' && data[i + 1] == '\n'))
             i++;
+
+        i += 2; // Skip CRLF
     }
 }
 
@@ -197,7 +195,56 @@ static size_t parse_start(struct string *request,
     return i;
 }
 
-struct request_header *parse_request(struct string *request)
+static bool is_valid_host(const struct config *config, struct string *host)
+{
+    // Basic validation: check if host is not empty
+    if (host->size == 0)
+        return false;
+
+    // If host matches server_name
+    if (host->size + 1 == config->servers->server_name->size
+        && memcmp(host->data, config->servers->server_name->data, host->size)
+            == 0
+        && strcmp(config->servers->port, "80") == 0)
+        return true;
+
+    size_t i = 0;
+    // Get IP address
+    while (i < host->size && host->data[i] != ':')
+        i++;
+
+    // Compare IP address
+    size_t cfg_ip_len = strlen(config->servers->ip);
+    if (i == cfg_ip_len
+        && memcmp(host->data, config->servers->ip, cfg_ip_len) == 0)
+    {
+        const char *host_port_str;
+        size_t host_port_len;
+
+        if (i == host->size
+            || i + 1 == host->size) // No port specified, use default port 80 as
+                                    // per RFC 9110
+        {
+            host_port_str = "80";
+            host_port_len = 2;
+        }
+        else // Port specified in header
+        {
+            host_port_str = host->data + i + 1;
+            host_port_len = host->size - i - 1;
+        }
+
+        size_t cfg_port_len = strlen(config->servers->port);
+        if (host_port_len == cfg_port_len
+            && memcmp(host_port_str, config->servers->port, cfg_port_len) == 0)
+            return true;
+    }
+
+    return false;
+}
+
+struct request_header *parse_request(struct string *request,
+                                     const struct config *config)
 {
     if (!request || request->size == 0)
         return NULL;
@@ -211,6 +258,13 @@ struct request_header *parse_request(struct string *request)
         return req_header;
 
     parse_headers(request, i, req_header);
+
+    if (req_header->status != OK)
+        return req_header;
+
+    // Check mandatory Host header
+    if (req_header->host == NULL || !is_valid_host(config, req_header->host))
+        req_header->status = BAD_REQUEST;
 
     return req_header;
 }
