@@ -82,7 +82,9 @@ int stop_daemon(struct config *config)
     FILE *pid_file = fopen(config->pid_file, "r");
     if (!pid_file)
     {
-        printf("PID file not found: %s.", config->pid_file);
+        char msg[256];
+        sprintf(msg, "PID file not found: %s.", config->pid_file);
+        logger_log(config, msg);
         return 0;
     }
 
