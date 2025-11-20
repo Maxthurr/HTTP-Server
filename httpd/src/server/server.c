@@ -24,7 +24,8 @@
 
 static int sfd = -1;
 static struct config *g_config = NULL;
-static int cfd = -1;
+
+static volatile sig_atomic_t shutdown_needed = false;
 
 static void handle_signals(int sig)
 {
@@ -35,7 +36,7 @@ static void handle_signals(int sig)
         // Graceful shutdown
         logger_log(g_config,
                    "-- Received termination signal, shutting down...");
-        stop_server(cfd, sfd, g_config);
+        shutdown_needed = true;
         break;
     default:
         // Unsupported signal
@@ -110,7 +111,7 @@ int start_server(struct config *config)
 {
     g_config = config;
     struct sigaction sa = { 0 };
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags = 0;
     sa.sa_handler = SIG_IGN;
 
     // Ignore SIGPIPE to prevent server crash on client disconnect
@@ -121,7 +122,6 @@ int start_server(struct config *config)
     }
 
     // Handle SIGINT and SIGTERM for graceful shutdown
-    sa.sa_flags = 0;
     sa.sa_handler = handle_signals;
     if (sigaction(SIGINT, &sa, NULL) == -1
         || sigaction(SIGTERM, &sa, NULL) == -1)
@@ -135,22 +135,20 @@ int start_server(struct config *config)
     return sfd;
 }
 
-void stop_server(int cfd, int server_fd, struct config *config)
+void stop_server(int server_fd, struct config *config)
 {
-    if (cfd != -1)
-        close(cfd);
-
     close(server_fd);
     logger_destroy();
     config_destroy(config);
 }
 
-static void send_data(const struct config *config, int fd,
+static void send_data(const struct config *config, int cfd, int fd,
                       struct response_header *response)
 {
     struct string *response_str = response_header_to_string(response);
 
     size_t total_sent = 0;
+
     // Send response header
     while (total_sent < response_str->size)
     {
@@ -186,36 +184,18 @@ static void send_data(const struct config *config, int fd,
     string_destroy(response_str);
 }
 
-static struct string *get_fullname(const struct config *config,
-                                   struct string *filename)
-{
-    struct string *fullpath = string_create(config->servers->root_dir,
-                                            strlen(config->servers->root_dir));
-
-    string_concat_str(fullpath, "/", 1);
-    string_concat_str(fullpath, filename->data,
-                      filename->size - 1); // Exclude null byte
-
-    if (fullpath->size > 0 && fullpath->data[fullpath->size - 1] == '/')
-    {
-        string_concat_str(fullpath, config->servers->default_file,
-                          strlen(config->servers->default_file));
-    }
-
-    return fullpath;
-}
-
 static void handle_request(const struct config *config, struct string *request,
-                           struct string *sender)
+                           struct string *sender, int cfd)
 {
     struct request_header *req_header = parse_request(request);
 
     logger_request(config, req_header, sender);
 
+    // Get full file path from server root_directory
     struct string *full_filename = get_fullname(config, req_header->filename);
     off_t content_length = 0;
-    int fd = -1;
 
+    int fd = -1;
     if (req_header->status == OK)
     {
         content_length = get_file_length(full_filename->data);
@@ -239,10 +219,10 @@ static void handle_request(const struct config *config, struct string *request,
 
     struct response_header *response =
         create_response(req_header, content_length);
-
     logger_response(config, req_header, sender);
 
-    send_data(config, fd, response);
+    // Answer client's request
+    send_data(config, cfd, fd, response);
 
     destroy_request(req_header);
     destroy_response(response);
@@ -251,31 +231,35 @@ static void handle_request(const struct config *config, struct string *request,
 }
 
 static void handle_connection(const struct config *config,
-                              struct string *sender)
+                              struct string *sender, int cfd)
 {
     logger_log(config, "-- Connection successful");
 
     ssize_t n;
     char buf[1024];
-
     struct string *request = string_create("", 0);
 
     // Receive data from client
-    while ((n = recv(cfd, buf, sizeof(buf) - 1, 0)) > 0)
+    while (!shutdown_needed && (n = recv(cfd, buf, sizeof(buf) - 1, 0)) > 0)
     {
+        // Append received data to request string
         string_concat_str(request, buf, n);
+
         // Check for end of HTTP header
         if (memmem(request->data, request->size, "\r\n\r\n", 4))
             break;
     }
 
-    logger_log(config, "-- Request received");
+    if (!shutdown_needed)
+    {
+        logger_log(config, "-- Request received");
 
-    handle_request(config, request, sender);
+        handle_request(config, request, sender, cfd);
 
-    char msg[128];
-    sprintf(msg, "-- Closing connection with %s", sender->data);
-    logger_log(config, msg);
+        char msg[128];
+        sprintf(msg, "-- Closing connection with %s", sender->data);
+        logger_log(config, msg);
+    }
 
     string_destroy(request);
 }
@@ -290,34 +274,40 @@ int run_server(int sfd, struct config *config)
         return 1;
     }
 
-    while (1)
+    while (!shutdown_needed)
     {
         logger_log(config, "-- Waiting for connections...");
 
         struct sockaddr addr = { 0 };
         socklen_t addr_len = sizeof(addr);
 
-        cfd = accept(sfd, &addr, &addr_len);
+        int cfd = accept(sfd, &addr, &addr_len);
         if (cfd == -1)
         {
+            // If accept was interrupted by signal, go to next iteration
+            if (errno == EINTR)
+                continue;
+
             close(sfd);
             logger_error(config, "accept()", strerror(errno));
             return 1;
         }
 
+        // Get client IP address
         void *tmp = &addr;
         struct sockaddr_in *in_addr = tmp;
         char ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &in_addr->sin_addr, ip_str, sizeof(ip_str));
         struct string *sender = string_create(ip_str, strlen(ip_str) + 1);
 
-        handle_connection(config, sender);
+        handle_connection(config, sender, cfd);
 
         string_destroy(sender);
         close(cfd);
         cfd = -1;
     }
 
-    stop_server(cfd, sfd, config);
+    // Graceful shutdown
+    stop_server(sfd, config);
     return 0;
 }
