@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -52,6 +53,36 @@ struct response_header *create_response(const struct request_header *request,
 
     response->content_length = content_length;
     return response;
+}
+
+struct string *response_header_to_string(const struct response_header *response)
+{
+    struct string *header = string_create("", 0);
+
+    char *field_end = "\r\n";
+    size_t field_end_len = strlen(field_end);
+
+    // Status line
+    string_concat_str(header, response->status->data, response->status->size);
+    string_concat_str(header, field_end, field_end_len);
+    //  Date line
+    string_concat_str(header, "Date: ", strlen("Date: "));
+    string_concat_str(header, response->date->data, response->date->size);
+    string_concat_str(header, field_end, field_end_len);
+    // Content-Length line
+    char content_length_str[50];
+    sprintf(content_length_str, "Content-Length: %ld\r\n",
+            response->content_length);
+    string_concat_str(header, content_length_str, strlen(content_length_str));
+
+    // Connection line
+    string_concat_str(header, "Connection: close\r\n",
+                      strlen("Connection: close\r\n"));
+
+    // End header
+    string_concat_str(header, field_end, field_end_len);
+
+    return header;
 }
 
 void destroy_response(struct response_header *response)

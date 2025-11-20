@@ -41,10 +41,15 @@ struct response_header
     off_t content_length;
 };
 
+// HTTP Request
 struct request_header *parse_request(struct string *request);
 void destroy_request(struct request_header *request);
+
+// HTTP Response
 struct response_header *create_response(const struct request_header *request,
                                         off_t content_length);
+struct string *
+response_header_to_string(const struct response_header *response);
 void destroy_response(struct response_header *response);
 
 #endif /* ! HTTP_H */
