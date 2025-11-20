@@ -20,6 +20,8 @@ static enum http_method get_method(const char *data, size_t size)
 static size_t get_filename_length(const char *data, size_t size, size_t start)
 {
     size_t i = start;
+
+    // Traverse file name
     while (i < size && data[i] != ' ')
         i++;
 
@@ -79,6 +81,10 @@ static bool is_valid_header_line(struct string *request, size_t index)
 static bool parse_host_field(struct string *request, size_t *index,
                              struct request_header *req_header)
 {
+    // Only one Host field is allowed
+    if (req_header->host != NULL)
+        return false;
+
     char *data = request->data;
     size_t i = *index + 5; // Skip field name "Host:"
 
@@ -93,10 +99,7 @@ static bool parse_host_field(struct string *request, size_t *index,
 
     // Unfinished header
     if (i >= request->size)
-    {
-        req_header->status = BAD_REQUEST;
         return false;
-    }
 
     req_header->host = string_create(data + start, i - start);
     *index = i + 2; // Go to field file
@@ -107,6 +110,8 @@ static void parse_headers(struct string *request, size_t i,
                           struct request_header *req_header)
 {
     char *data = request->data;
+
+    // Traverse header fields
     while (!end_of_header(request, i))
     {
         // Host field line
@@ -147,9 +152,7 @@ static void parse_filename(struct string *request, size_t *i,
 static void parse_version(struct string *request, size_t *i,
                           struct request_header *req_header)
 {
-    if (*i == request->size || request->data[(*i)++] != ' '
-        || (request->data[*i] == '\r' && request->data[*i + 1] == '\n'))
-        req_header->status = BAD_REQUEST;
+    // Traverse HTTP version
 
     req_header->version = string_create(request->data + *i, 8); // "HTTP/x.x"
     if (memcmp(req_header->version->data, HTTP_VERSION, 8))
@@ -166,15 +169,25 @@ static size_t parse_start(struct string *request,
     if (req_header->method == UNKNOWN)
         req_header->status = METHOD_NOT_ALLOWED;
 
-    i += req_header->method == GET ? 3 : 4;
+    // Move to the end of method string
+    while (i < request->size && request->data[i] != ' ')
+        i++;
 
-    if (i == request->size || request->data[i++] != ' '
+    // Request line malformed
+    if (i + 2 >= request->size || request->data[i++] != ' '
         || (request->data[i] == '\r' && request->data[i + 1] == '\n'))
         req_header->status = BAD_REQUEST;
 
     parse_filename(request, &i, req_header);
+
+    // Request line malformed
+    if (i + 2 >= request->size || request->data[i++] != ' '
+        || (request->data[i] == '\r' && request->data[i + 1] == '\n'))
+        req_header->status = BAD_REQUEST;
+
     parse_version(request, &i, req_header);
 
+    // Wrongly terminated request line
     if (i + 2 >= request->size || request->data[i] != '\r'
         || request->data[i + 1] != '\n')
         req_header->status = BAD_REQUEST;
