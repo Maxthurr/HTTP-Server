@@ -186,6 +186,25 @@ static void send_data(const struct config *config, int fd,
     string_destroy(response_str);
 }
 
+static struct string *get_fullname(const struct config *config,
+                                   struct string *filename)
+{
+    struct string *fullpath = string_create(config->servers->root_dir,
+                                            strlen(config->servers->root_dir));
+
+    string_concat_str(fullpath, "/", 1);
+    string_concat_str(fullpath, filename->data,
+                      filename->size - 1); // Exclude null byte
+
+    if (fullpath->size > 0 && fullpath->data[fullpath->size - 1] == '/')
+    {
+        string_concat_str(fullpath, config->servers->default_file,
+                          strlen(config->servers->default_file));
+    }
+
+    return fullpath;
+}
+
 static void handle_request(const struct config *config, struct string *request,
                            struct string *sender)
 {
@@ -193,12 +212,13 @@ static void handle_request(const struct config *config, struct string *request,
 
     logger_request(config, req_header, sender);
 
+    struct string *full_filename = get_fullname(config, req_header->filename);
     off_t content_length = 0;
     int fd = -1;
 
     if (req_header->status == OK)
     {
-        content_length = get_file_length(req_header->filename->data);
+        content_length = get_file_length(full_filename->data);
         if (content_length == -1)
         {
             req_header->status = NOT_FOUND;
@@ -206,7 +226,7 @@ static void handle_request(const struct config *config, struct string *request,
         }
         else if (req_header->method == GET)
         {
-            fd = open(req_header->filename->data, O_RDONLY);
+            fd = open(full_filename->data, O_RDONLY);
             if (fd == -1)
             {
                 req_header->status = FORBIDDEN;
@@ -214,6 +234,8 @@ static void handle_request(const struct config *config, struct string *request,
             }
         }
     }
+
+    string_destroy(full_filename);
 
     struct response_header *response =
         create_response(req_header, content_length);
