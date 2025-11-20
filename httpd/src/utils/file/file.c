@@ -25,7 +25,7 @@ struct string *get_fullname(const struct config *config,
                                             strlen(config->servers->root_dir));
 
     string_concat_str(fullpath, filename->data,
-                      filename->size - 1); // Exclude null byte
+                      filename->size); // Exclude null byte
 
     if (fullpath->size > 0 && fullpath->data[fullpath->size - 1] == '/')
     {
