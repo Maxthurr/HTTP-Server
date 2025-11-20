@@ -6,7 +6,7 @@ OBJS=$(SRCS:.c=.o)
 TARGET=httpd
 
 TEST_SOURCES := $(wildcard tests/unit_tests/*.c)
-TEST_SUPPORT := src/utils/string/string.c src/http/parser.c src/http/response_generator.c src/config/config.c
+TEST_SUPPORT := src/utils/string/string.c src/http/request_parser.c src/http/response_generator.c src/config/config.c
 TEST_BIN_DIR := tests
 TEST_BINS := $(patsubst tests/unit_tests/%.c,$(TEST_BIN_DIR)/%,$(TEST_SOURCES))
 
