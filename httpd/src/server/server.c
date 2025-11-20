@@ -145,7 +145,7 @@ void stop_server(int cfd, int server_fd, struct config *config)
     config_destroy(config);
 }
 
-static void send_data(struct config *config, int fd,
+static void send_data(const struct config *config, int fd,
                       struct response_header *response)
 {
     struct string *response_str = response_header_to_string(response);
@@ -186,10 +186,12 @@ static void send_data(struct config *config, int fd,
     string_destroy(response_str);
 }
 
-static void handle_request(struct config *config, struct string *request)
-// struct string *sender)
+static void handle_request(const struct config *config, struct string *request,
+                           struct string *sender)
 {
     struct request_header *req_header = parse_request(request);
+
+    logger_request(config, req_header, sender);
 
     off_t content_length = 0;
     int fd = -1;
@@ -216,6 +218,8 @@ static void handle_request(struct config *config, struct string *request)
     struct response_header *response =
         create_response(req_header, content_length);
 
+    logger_response(config, req_header, sender);
+
     send_data(config, fd, response);
 
     destroy_request(req_header);
@@ -224,7 +228,37 @@ static void handle_request(struct config *config, struct string *request)
         close(fd);
 }
 
-int accept_connection(int sfd, struct config *config)
+static void handle_connection(const struct config *config,
+                              struct string *sender)
+{
+    logger_log(config, "-- Connection successful");
+
+    ssize_t n;
+    char buf[1024];
+
+    struct string *request = string_create("", 0);
+
+    // Receive data from client
+    while ((n = recv(cfd, buf, sizeof(buf) - 1, 0)) > 0)
+    {
+        string_concat_str(request, buf, n);
+        // Check for end of HTTP header
+        if (memmem(request->data, request->size, "\r\n\r\n", 4))
+            break;
+    }
+
+    logger_log(config, "-- Request received");
+
+    handle_request(config, request, sender);
+
+    char msg[128];
+    sprintf(msg, "-- Closing connection with %s", sender->data);
+    logger_log(config, msg);
+
+    string_destroy(request);
+}
+
+int run_server(int sfd, struct config *config)
 {
     int e = listen(sfd, 5);
     if (e == -1)
@@ -253,30 +287,11 @@ int accept_connection(int sfd, struct config *config)
         struct sockaddr_in *in_addr = tmp;
         char ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &in_addr->sin_addr, ip_str, sizeof(ip_str));
-        struct string *sender = string_create(ip_str, strlen(ip_str));
+        struct string *sender = string_create(ip_str, strlen(ip_str) + 1);
 
-        logger_log(config, "-- Connection successful");
+        handle_connection(config, sender);
 
-        ssize_t n;
-        char buf[1024];
-
-        struct string *request = string_create("", 0);
-
-        // Receive data from client
-        while ((n = recv(cfd, buf, sizeof(buf) - 1, 0)) > 0)
-        {
-            string_concat_str(request, buf, n);
-            // Check for end of HTTP header
-            if (memmem(request->data, request->size, "\r\n\r\n", 4))
-                break;
-        }
-
-        logger_log(config, "-- Request received");
-
-        handle_request(config, request); //, sender);
         string_destroy(sender);
-        string_destroy(request);
-
         close(cfd);
         cfd = -1;
     }
