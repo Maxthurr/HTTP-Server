@@ -41,6 +41,17 @@ void logger_log(const struct config *config, const char *message)
             config->servers->server_name->data, message);
 }
 
+void logger_error(const struct config *config, const char *source,
+                  const char *message)
+{
+    if (!log_file || !config->log)
+        return;
+
+    char msg[512];
+    snprintf(msg, sizeof(msg), "An error occured in %s: %s", source, message);
+    logger_log(config, msg);
+}
+
 void logger_destroy(void)
 {
     // Ensure all logs are flushed before closing
