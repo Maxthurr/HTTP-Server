@@ -22,9 +22,7 @@
 #include "../utils/file/file.h"
 #include "../utils/string/string.h"
 
-static int sfd = -1;
 static struct config *g_config = NULL;
-
 static volatile sig_atomic_t shutdown_needed = false;
 
 static void handle_signals(int sig)
@@ -71,6 +69,7 @@ static int create_socket(struct addrinfo *addr)
         return -1;
     int e;
 
+    int sfd = -1;
     struct addrinfo *p;
     for (p = addr; p; p = p->ai_next)
     {
@@ -131,7 +130,7 @@ int start_server(struct config *config)
     }
 
     // Open socket
-    sfd = create_socket(get_ai(config->servers));
+    int sfd = create_socket(get_ai(config->servers));
     return sfd;
 }
 
@@ -304,7 +303,6 @@ int run_server(int sfd, struct config *config)
 
         string_destroy(sender);
         close(cfd);
-        cfd = -1;
     }
 
     // Graceful shutdown
