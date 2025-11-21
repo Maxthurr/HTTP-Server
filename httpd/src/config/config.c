@@ -117,7 +117,7 @@ struct config *parse_configuration(int argc, char *argv[])
 
     if (!config->servers->default_file)
         config->servers->default_file = strdup("index.html");
-    if (config->daemon != NO_OPTION && !config->log_file)
+    if (config->daemon != NO_OPTION && !config->log_file && config->log)
         config->log_file = strdup("HTTPd.log");
 
     return config;

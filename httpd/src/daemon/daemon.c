@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/signal.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "../config/config.h"
@@ -45,34 +46,30 @@ static bool pid_exists(const struct config *config)
 
 int start_daemon(struct config *config)
 {
-    char msg[256];
+    // char msg[256];
     if (pid_exists(config))
     {
-        sprintf(msg, "A daemon is already running with same PID file (%s).",
-                config->pid_file);
-        logger_log(config, msg);
+        // sprintf(msg, "A daemon is already running with same PID file (%s).",
+        // config->pid_file);
+        // logger_log(config, msg);
         return 1;
     }
 
-    sprintf(msg, "Starting daemon with PID file: %s", config->pid_file);
-    logger_log(config, msg);
+    // sprintf(msg, "Starting daemon with PID file: %s", config->pid_file);
+    // logger_log(config, msg);
 
     pid_t pid = fork();
     if (pid < 0)
         return 1;
     if (pid > 0)
     {
-        logger_destroy(); // Close log files for parent process
+        // logger_destroy(); // Close log files for parent process
         _exit(0); // Terminate parent process
     }
 
     // Add child PID to PID file
     if (add_pid(config, getpid()) != 0)
         return 1;
-
-    // Add log file if needed
-    if (config->log && !config->log_file)
-        config->log_file = strdup("HTTPd.log");
 
     return 0;
 }
@@ -82,9 +79,9 @@ int stop_daemon(struct config *config)
     FILE *pid_file = fopen(config->pid_file, "r");
     if (!pid_file)
     {
-        char msg[256];
-        sprintf(msg, "PID file not found: %s.", config->pid_file);
-        logger_log(config, msg);
+        // char msg[256];
+        // sprintf(msg, "PID file not found: %s.", config->pid_file);
+        // logger_log(config, msg);
         return 0;
     }
 
@@ -93,7 +90,11 @@ int stop_daemon(struct config *config)
     {
         // Kill the process
         if (kill(existing_pid, SIGINT) == 0)
+        {
+            // Wait for the process to properly terminate
+            waitpid(existing_pid, NULL, 0);
             break;
+        }
     }
 
     // Close PID file and delete it

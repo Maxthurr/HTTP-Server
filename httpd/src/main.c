@@ -106,32 +106,34 @@ int main(int argc, char **argv)
         return 1;
 
     struct config *config = parse_configuration(argc, argv);
-    logger_init(config);
-
-    logger_log(config, "-- Configuration Parsed");
-    print_config(config);
 
     switch (config->daemon)
     {
     case START:
-        logger_log(config, "-- Starting daemon");
+        // logger_init(config);
+        // logger_log(config, "-- Starting daemon");
         if (start_daemon(config))
             return 1;
         break;
     case STOP:
-        logger_log(config, "-- Stopping daemon");
+        // logger_log(config, "-- Stopping daemon");
         stop_daemon(config);
-        logger_destroy();
+        // logger_destroy();
         config_destroy(config);
         return 0;
     case RESTART:
-        logger_log(config, "-- Restarting daemon");
+        // logger_init(config);
+        // logger_log(config, "-- Restarting daemon");
         restart_daemon(config);
         break;
     case NO_OPTION:
     default:
         break;
     }
+
+    logger_init(config);
+    logger_log(config, "-- Configuration Parsed");
+    print_config(config);
 
     logger_log(config, "-- Starting server...");
     int server_fd = start_server(config);
