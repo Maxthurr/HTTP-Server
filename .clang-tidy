@@ -2,7 +2,8 @@ Checks: >
   include-cleaner-*,
   google-readability-casting,
   readability-isolate-declaration,
-  readability-function-size
+  readability-function-size,
+  misc-include-cleaner
 
 WarningsAsErrors: >
   include-cleaner-*,
