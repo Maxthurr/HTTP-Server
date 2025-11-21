@@ -204,8 +204,7 @@ static bool is_valid_host(const struct config *config, struct string *host)
     // If host matches server_name
     if (host->size + 1 == config->servers->server_name->size
         && memcmp(host->data, config->servers->server_name->data, host->size)
-            == 0
-        && strcmp(config->servers->port, "80") == 0)
+            == 0)
         return true;
 
     size_t i = 0;
@@ -221,9 +220,11 @@ static bool is_valid_host(const struct config *config, struct string *host)
         const char *host_port_str;
         size_t host_port_len;
 
-        if (i == host->size
-            || i + 1 == host->size) // No port specified, use default port 80 as
-                                    // per RFC 9110
+        if (i == host->size)
+            return true;
+
+        if (i + 1 == host->size) // No port specified, use default port 80 as
+                                 // per RFC 9110
         {
             host_port_str = "80";
             host_port_len = 2;
