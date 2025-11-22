@@ -270,7 +270,7 @@ static void free_connection(struct connection *c)
     free(c);
 }
 
-static int handle_client_read(const struct config *config, struct connection *c)
+static int receive_client_data(const struct config *config, struct connection *c)
 {
     ssize_t n;
     char buf[1024];
@@ -425,24 +425,25 @@ int run_server(int sfd, struct config *config)
 
         for (int i = 0; i < n; ++i)
         {
-            struct epoll_event *e = &events[i];
-            if (e->data.ptr == NULL)
+            struct epoll_event *event = &events[i];
+            if (event->data.ptr == NULL)
             {
                 accept_and_register(epfd, sfd, config);
                 continue;
             }
 
-            struct connection *connection = e->data.ptr;
+            struct connection *connection = event->data.ptr;
 
-            if (e->events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
+            // Error occured in event
+            if (event->events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
             {
                 close_connection(epfd, connection);
                 continue;
             }
 
-            if (e->events & EPOLLIN)
+            if (event->events & EPOLLIN)
             {
-                int received = handle_client_read(config, connection);
+                int received = receive_client_data(config, connection);
                 if (received == 1)
                 {
                     // Full request received
