@@ -60,8 +60,7 @@ static bool parse_options(int argc, char **argv, struct option *options,
             break;
         case SERVER_NAME:
             config->servers->server_name =
-                string_create(optarg, strlen(optarg) + 1);
-            config->servers->server_name->data[strlen(optarg)] = '\0';
+                string_create(optarg, strlen(optarg));
             break;
         case PORT:
             config->servers->port = strdup(optarg);
