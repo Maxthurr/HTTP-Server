@@ -248,42 +248,44 @@ struct connection
 
 static struct connection *create_connection(int fd, struct string *sender)
 {
-    struct connection *c = calloc(1, sizeof(struct connection));
-    if (!c)
+    struct connection *connection = calloc(1, sizeof(struct connection));
+    if (!connection)
         return NULL;
-    c->fd = fd;
-    c->sender = sender;
-    c->request = string_create("", 0);
-    return c;
+    connection->fd = fd;
+    connection->sender = sender;
+    connection->request = string_create("", 0);
+    return connection;
 }
 
-static void free_connection(struct connection *c)
+static void free_connection(struct connection *connection)
 {
-    if (!c)
+    if (!connection)
         return;
 
-    string_destroy(c->sender);
-    string_destroy(c->request);
+    string_destroy(connection->sender);
+    string_destroy(connection->request);
 
-    if (c->fd != -1)
-        close(c->fd);
-    free(c);
+    if (connection->fd != -1)
+        close(connection->fd);
+    free(connection);
 }
 
-static int receive_client_data(const struct config *config, struct connection *c)
+static int receive_client_data(const struct config *config,
+                               struct connection *connection)
 {
     ssize_t n;
     char buf[1024];
 
     while (!shutdown_needed)
     {
-        n = recv(c->fd, buf, sizeof(buf) - 1, 0);
+        n = recv(connection->fd, buf, sizeof(buf) - 1, 0);
 
         // Data received
         if (n > 0)
         {
-            string_concat_str(c->request, buf, n);
-            if (memmem(c->request->data, c->request->size, "\r\n\r\n", 4))
+            string_concat_str(connection->request, buf, n);
+            if (memmem(connection->request->data, connection->request->size,
+                       "\r\n\r\n", 4))
                 return 1;
 
             continue;
