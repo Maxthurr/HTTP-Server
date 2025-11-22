@@ -32,14 +32,17 @@ void logger_log(const struct config *config, const char *message)
     if (!log_file || !config->log)
         return;
 
+    // Get server name
+    char server_name[256];
+    snprintf(server_name, config->servers->server_name->size + 1, "%s",
+             config->servers->server_name->data);
     // Get current time in GMT
     time_t now = time(NULL);
     struct tm *tm_info = gmtime(&now);
     // Format time as Day (3 letters), DD Mon YYYY HH:MM:SS GMT
     char time_str[30];
     strftime(time_str, sizeof(time_str), "%a, %d %b %Y %H:%M:%S GMT", tm_info);
-    fprintf(log_file, "%s [%s] %s\n", time_str,
-            config->servers->server_name->data, message);
+    fprintf(log_file, "%s [%s] %s\n", time_str, server_name, message);
 }
 
 static const char *status_to_string(enum request_status status)
