@@ -1,14 +1,12 @@
 #include "daemon.h"
 
 #include <stdio.h>
-#include <string.h>
 #include <sys/signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "../config/config.h"
-#include "../logger/logger.h"
 
 static int add_pid(const struct config *config, pid_t pid)
 {
@@ -46,26 +44,14 @@ static bool pid_exists(const struct config *config)
 
 int start_daemon(struct config *config)
 {
-    // char msg[256];
     if (pid_exists(config))
-    {
-        // sprintf(msg, "A daemon is already running with same PID file (%s).",
-        // config->pid_file);
-        // logger_log(config, msg);
         return 1;
-    }
-
-    // sprintf(msg, "Starting daemon with PID file: %s", config->pid_file);
-    // logger_log(config, msg);
 
     pid_t pid = fork();
     if (pid < 0)
         return 1;
     if (pid > 0)
-    {
-        // logger_destroy(); // Close log files for parent process
         _exit(0); // Terminate parent process
-    }
 
     // Add child PID to PID file
     if (add_pid(config, getpid()) != 0)
@@ -78,12 +64,7 @@ int stop_daemon(struct config *config)
 {
     FILE *pid_file = fopen(config->pid_file, "r");
     if (!pid_file)
-    {
-        // char msg[256];
-        // sprintf(msg, "PID file not found: %s.", config->pid_file);
-        // logger_log(config, msg);
         return 0;
-    }
 
     pid_t existing_pid;
     while (fscanf(pid_file, "%d", &existing_pid) == 1)

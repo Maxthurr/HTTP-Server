@@ -110,20 +110,14 @@ int main(int argc, char **argv)
     switch (config->daemon)
     {
     case START:
-        // logger_init(config);
-        // logger_log(config, "-- Starting daemon");
         if (start_daemon(config))
             return 1;
         break;
     case STOP:
-        // logger_log(config, "-- Stopping daemon");
         stop_daemon(config);
-        // logger_destroy();
         config_destroy(config);
         return 0;
     case RESTART:
-        // logger_init(config);
-        // logger_log(config, "-- Restarting daemon");
         restart_daemon(config);
         break;
     case NO_OPTION:
