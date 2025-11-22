@@ -5,5 +5,5 @@ pid_file = /tmp/HTTPd.pid
 server_name = my_server
 ip = 127.0.0.1
 port = 6996
-root_dir = .
+root_dir = ./src
 default_file = main.c

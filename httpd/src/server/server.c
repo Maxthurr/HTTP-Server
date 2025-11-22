@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/epoll.h>
 #include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -20,6 +21,8 @@
 #include "../logger/logger.h"
 #include "../utils/file/file.h"
 #include "../utils/string/string.h"
+
+#define MAX_EVENTS 64
 
 static struct config *g_config = NULL;
 static volatile sig_atomic_t shutdown_needed = false;
@@ -60,6 +63,14 @@ static struct addrinfo *get_ai(const struct server_config *config)
     }
 
     return result;
+}
+
+static int set_nonblocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1)
+        return -1;
+    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 static int create_socket(struct addrinfo *addr)
@@ -228,83 +239,224 @@ static void handle_request(const struct config *config, struct string *request,
         close(fd);
 }
 
-static void handle_connection(const struct config *config,
-                              struct string *sender, int cfd)
+struct connection
 {
-    logger_log(config, "-- Connection successful");
+    int fd;
+    struct string *sender;
+    struct string *request;
+};
 
-    ssize_t n;
-    char buf[1024];
-    struct string *request = string_create("", 0);
-
-    // Receive data from client
-    while (!shutdown_needed && (n = recv(cfd, buf, sizeof(buf) - 1, 0)) > 0)
-    {
-        // Append received data to request string
-        string_concat_str(request, buf, n);
-
-        // Check for end of HTTP header
-        if (memmem(request->data, request->size, "\r\n\r\n", 4))
-            break;
-    }
-
-    if (!shutdown_needed)
-    {
-        logger_log(config, "-- Request received");
-
-        handle_request(config, request, sender, cfd);
-
-        char msg[128];
-        sprintf(msg, "-- Closing connection with %s", sender->data);
-        logger_log(config, msg);
-    }
-
-    string_destroy(request);
+static struct connection *create_connection(int fd, struct string *sender)
+{
+    struct connection *c = calloc(1, sizeof(struct connection));
+    if (!c)
+        return NULL;
+    c->fd = fd;
+    c->sender = sender;
+    c->request = string_create("", 0);
+    return c;
 }
 
-int run_server(int sfd, struct config *config)
+static void free_connection(struct connection *c)
 {
-    int e = listen(sfd, 5);
-    if (e == -1)
+    if (!c)
+        return;
+
+    string_destroy(c->sender);
+    string_destroy(c->request);
+
+    if (c->fd != -1)
+        close(c->fd);
+    free(c);
+}
+
+static int handle_client_read(const struct config *config, struct connection *c)
+{
+    ssize_t n;
+    char buf[1024];
+
+    while (!shutdown_needed)
+    {
+        n = recv(c->fd, buf, sizeof(buf) - 1, 0);
+
+        // Data received
+        if (n > 0)
+        {
+            string_concat_str(c->request, buf, n);
+            if (memmem(c->request->data, c->request->size, "\r\n\r\n", 4))
+                return 1;
+
+            continue;
+        }
+
+        // Connection closed by client
+        if (n == 0)
+            return -1;
+
+        if (n == -1)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                return 0;
+            if (errno == EINTR)
+                continue;
+
+            logger_error(config, "recv()", strerror(errno));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static void accept_and_register(int epfd, int sfd, struct config *config)
+{
+    while (!shutdown_needed)
+    {
+        struct sockaddr_in addr;
+        socklen_t addr_len = sizeof(addr);
+        int cfd = accept(sfd, (struct sockaddr *)&addr, &addr_len);
+        if (cfd == -1)
+        {
+            // No more incoming connections to accept
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                break;
+
+            // Interrupted by signal
+            if (errno == EINTR)
+                continue;
+
+            logger_error(config, "accept()", strerror(errno));
+            break;
+        }
+
+        if (set_nonblocking(cfd) == -1)
+        {
+            close(cfd);
+            continue;
+        }
+
+        char ip_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr.sin_addr, ip_str, sizeof(ip_str));
+        struct string *sender = string_create(ip_str, strlen(ip_str) + 1);
+
+        struct connection *connection = create_connection(cfd, sender);
+        if (!connection)
+        {
+            string_destroy(sender);
+            close(cfd);
+            continue;
+        }
+
+        struct epoll_event conn_event;
+        conn_event.events = EPOLLIN | EPOLLRDHUP;
+        conn_event.data.ptr = connection;
+        if (epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &conn_event) == -1)
+        {
+            free_connection(connection);
+            continue;
+        }
+    }
+}
+
+static int setup_epoll(int sfd, struct config *config)
+{
+    if (listen(sfd, SOMAXCONN))
     {
         close(sfd);
         logger_error(config, "listen()", strerror(errno));
         return 1;
     }
 
+    if (set_nonblocking(sfd) == -1)
+    {
+        close(sfd);
+        logger_error(config, "set_nonblocking()", strerror(errno));
+        return 1;
+    }
+
+    // Create epoll instance
+    int epfd = epoll_create1(0);
+    if (epfd == -1)
+    {
+        logger_error(config, "epoll_create1()", strerror(errno));
+        return 1;
+    }
+
+    struct epoll_event event;
+    event.events = EPOLLIN;
+    event.data.ptr = NULL;
+
+    // Register listening socket
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, sfd, &event) == -1)
+    {
+        logger_error(config, "epoll_ctl ADD listen", strerror(errno));
+        close(epfd);
+        return 1;
+    }
+
+    return epfd;
+}
+
+static void close_connection(int epfd, struct connection *connection)
+{
+    epoll_ctl(epfd, EPOLL_CTL_DEL, connection->fd, NULL);
+    free_connection(connection);
+}
+
+int run_server(int sfd, struct config *config)
+{
+    int epfd = setup_epoll(sfd, config);
+    if (epfd == -1)
+        return 1;
+
+    struct epoll_event events[MAX_EVENTS];
     while (!shutdown_needed)
     {
-        logger_log(config, "-- Waiting for connections...");
-
-        struct sockaddr addr = { 0 };
-        socklen_t addr_len = sizeof(addr);
-
-        int cfd = accept(sfd, &addr, &addr_len);
-        if (cfd == -1)
+        int n = epoll_wait(epfd, events, MAX_EVENTS, -1);
+        if (n == -1)
         {
-            // If accept was interrupted by signal, go to next iteration
+            // If interrupted by a signal, go to next iteration
             if (errno == EINTR)
                 continue;
 
-            close(sfd);
-            logger_error(config, "accept()", strerror(errno));
-            return 1;
+            logger_error(config, "epoll_wait()", strerror(errno));
+            break;
         }
 
-        // Get client IP address
-        void *tmp = &addr;
-        struct sockaddr_in *in_addr = tmp;
-        char ip_str[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &in_addr->sin_addr, ip_str, sizeof(ip_str));
-        struct string *sender = string_create(ip_str, strlen(ip_str) + 1);
+        for (int i = 0; i < n; ++i)
+        {
+            struct epoll_event *e = &events[i];
+            if (e->data.ptr == NULL)
+            {
+                accept_and_register(epfd, sfd, config);
+                continue;
+            }
 
-        handle_connection(config, sender, cfd);
+            struct connection *connection = e->data.ptr;
 
-        string_destroy(sender);
-        close(cfd);
+            if (e->events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
+            {
+                close_connection(epfd, connection);
+                continue;
+            }
+
+            if (e->events & EPOLLIN)
+            {
+                int received = handle_client_read(config, connection);
+                if (received == 1)
+                {
+                    // Full request received
+                    handle_request(config, connection->request,
+                                   connection->sender, connection->fd);
+                }
+
+                // Close connection after handling request
+                close_connection(epfd, connection);
+            }
+        }
     }
 
-    // Graceful shutdown
+    close(epfd);
     stop_server(sfd, config);
     return 0;
 }

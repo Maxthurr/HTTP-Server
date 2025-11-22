@@ -1,5 +1,6 @@
 CC=gcc
 CFLAGS=-std=c99 -Werror -Wall -Wextra -Wvla -pedantic
+LDLIBS+= -lpthread
 SRCS=src/main.c src/config/config.c src/logger/logger.c src/server/server.c src/utils/string/string.c src/daemon/daemon.c \
 	 src/http/request_parser.c src/http/response_generator.c src/utils/file/file.c
 OBJS=$(SRCS:.c=.o)
@@ -11,12 +12,12 @@ TEST_BIN_DIR := tests
 TEST_BINS := $(patsubst tests/unit_tests/%.c,$(TEST_BIN_DIR)/%,$(TEST_SOURCES))
 
 httpd: $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET)
+	$(CC) $(OBJS) -o $(TARGET) $(LDLIBS)
 
 debug: CFLAGS += -g -fsanitize=address
 debug: LDFLAGS += -fsanitize=address
 debug: $(OBJS)
-	$(CC) $^ -o httpd $(LDFLAGS)
+	$(CC) $^ -o httpd $(LDFLAGS) $(LDLIBS)
 
 
 check: CFLAGS += -fsanitize=address -g
