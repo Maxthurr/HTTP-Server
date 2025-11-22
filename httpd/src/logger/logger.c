@@ -1,6 +1,10 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "logger.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "../config/config.h"
@@ -33,9 +37,10 @@ void logger_log(const struct config *config, const char *message)
         return;
 
     // Get server name
-    char server_name[256];
-    snprintf(server_name, config->servers->server_name->size + 1, "%s",
-             config->servers->server_name->data);
+    char *server_name = strndup(config->servers->server_name->data,
+                                config->servers->server_name->size);
+    for (size_t i = 0; i < config->servers->server_name->size && i < 255; i++)
+        server_name[i] = config->servers->server_name->data[i];
     // Get current time in GMT
     time_t now = time(NULL);
     struct tm *tm_info = gmtime(&now);
@@ -43,6 +48,8 @@ void logger_log(const struct config *config, const char *message)
     char time_str[30];
     strftime(time_str, sizeof(time_str), "%a, %d %b %Y %H:%M:%S GMT", tm_info);
     fprintf(log_file, "%s [%s] %s\n", time_str, server_name, message);
+
+    free(server_name);
 }
 
 static const char *status_to_string(enum request_status status)
