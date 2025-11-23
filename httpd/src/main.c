@@ -106,12 +106,17 @@ int main(int argc, char **argv)
         return 1;
 
     struct config *config = parse_configuration(argc, argv);
+    if (!config)
+        return 2;
 
     switch (config->daemon)
     {
     case START:
         if (start_daemon(config))
+        {
+            config_destroy(config);
             return 1;
+        }
         break;
     case STOP:
         stop_daemon(config);

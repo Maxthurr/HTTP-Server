@@ -67,14 +67,13 @@ int stop_daemon(struct config *config)
         return 0;
 
     pid_t existing_pid;
-    while (fscanf(pid_file, "%d", &existing_pid) == 1)
+    if (fscanf(pid_file, "%d", &existing_pid) == 1)
     {
         // Kill the process
         if (kill(existing_pid, SIGINT) == 0)
         {
             // Wait for the process to properly terminate
             waitpid(existing_pid, NULL, 0);
-            break;
         }
     }
 
