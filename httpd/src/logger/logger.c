@@ -39,8 +39,6 @@ void logger_log(const struct config *config, const char *message)
     // Get server name
     char *server_name = strndup(config->servers->server_name->data,
                                 config->servers->server_name->size);
-    for (size_t i = 0; i < config->servers->server_name->size && i < 255; i++)
-        server_name[i] = config->servers->server_name->data[i];
     // Get current time in GMT
     time_t now = time(NULL);
     struct tm *tm_info = gmtime(&now);
