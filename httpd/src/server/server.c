@@ -316,7 +316,7 @@ static void accept_and_register(int epfd, int sfd, struct config *config)
     {
         struct sockaddr_in addr;
         socklen_t addr_len = sizeof(addr);
-        int cfd = accept(sfd, (struct sockaddr *)&addr, &addr_len);
+        int cfd = accept(sfd, &addr, &addr_len);
         if (cfd == -1)
         {
             // No more incoming connections to accept
