@@ -27,6 +27,13 @@
 static struct config *g_config = NULL;
 static volatile sig_atomic_t shutdown_needed = false;
 
+struct connection
+{
+    int fd;
+    struct string *sender;
+    struct string *request;
+};
+
 static void handle_signals(int sig)
 {
     switch (sig)
@@ -67,9 +74,13 @@ static struct addrinfo *get_ai(const struct server_config *config)
 
 static int set_nonblocking(int fd)
 {
+    // Get current flags
     int flags = fcntl(fd, F_GETFL, 0);
+
     if (flags == -1)
         return -1;
+
+    // Add non blocking flag
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
@@ -101,6 +112,7 @@ static int create_socket(struct addrinfo *addr)
         if (e != -1)
             break;
 
+        // Could not bind, close current socket and try next address
         close(sfd);
     }
 
@@ -172,6 +184,7 @@ static void send_data(const struct config *config, int cfd, int fd,
         total_sent += sent;
     }
 
+    // Send file content if needed
     if (fd != -1)
     {
         off_t file_sent = 0;
@@ -197,7 +210,6 @@ static void handle_request(const struct config *config, struct string *request,
                            struct string *sender, int cfd)
 {
     struct request_header *req_header = parse_request(request, config);
-
     logger_request(config, req_header, sender);
 
     // Get full file path from server root_directory
@@ -233,24 +245,20 @@ static void handle_request(const struct config *config, struct string *request,
     // Answer client's request
     send_data(config, cfd, fd, response);
 
+    // Clean up
     destroy_request(req_header);
     destroy_response(response);
     if (fd != -1)
         close(fd);
 }
 
-struct connection
-{
-    int fd;
-    struct string *sender;
-    struct string *request;
-};
-
 static struct connection *create_connection(int fd, struct string *sender)
 {
     struct connection *connection = calloc(1, sizeof(struct connection));
+
     if (!connection)
         return NULL;
+
     connection->fd = fd;
     connection->sender = sender;
     connection->request = string_create("", 0);
@@ -267,6 +275,7 @@ static void free_connection(struct connection *connection)
 
     if (connection->fd != -1)
         close(connection->fd);
+
     free(connection);
 }
 
@@ -284,6 +293,8 @@ static int receive_client_data(const struct config *config,
         if (n > 0)
         {
             string_concat_str(connection->request, buf, n);
+
+            // Header fully received
             if (memmem(connection->request->data, connection->request->size,
                        "\r\n\r\n", 4))
                 return 1;
@@ -291,14 +302,17 @@ static int receive_client_data(const struct config *config,
             continue;
         }
 
-        // Connection closed by client
+        // No data to receive from client anymore
         if (n == 0)
             return -1;
 
         if (n == -1)
         {
+            // Error
             if (errno == EAGAIN || errno == EWOULDBLOCK)
                 return 0;
+
+            // Interrupt signal received
             if (errno == EINTR)
                 continue;
 
@@ -331,12 +345,14 @@ static void accept_and_register(int epfd, int sfd, struct config *config)
             break;
         }
 
+        // Set connection to non blocking
         if (set_nonblocking(cfd) == -1)
         {
             close(cfd);
             continue;
         }
 
+        // Get client IPv4 address
         char ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &addr.sin_addr, ip_str, sizeof(ip_str));
         struct string *sender = string_create(ip_str, strlen(ip_str) + 1);
@@ -352,6 +368,8 @@ static void accept_and_register(int epfd, int sfd, struct config *config)
         struct epoll_event conn_event;
         conn_event.events = EPOLLIN | EPOLLRDHUP;
         conn_event.data.ptr = connection;
+
+        // Register new connection
         if (epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &conn_event) == -1)
         {
             free_connection(connection);
@@ -362,6 +380,7 @@ static void accept_and_register(int epfd, int sfd, struct config *config)
 
 static int setup_epoll(int sfd, struct config *config)
 {
+    // Start listening
     if (listen(sfd, SOMAXCONN))
     {
         close(sfd);
@@ -369,6 +388,7 @@ static int setup_epoll(int sfd, struct config *config)
         return 1;
     }
 
+    // Set listening socket to non blocking
     if (set_nonblocking(sfd) == -1)
     {
         close(sfd);
@@ -428,6 +448,8 @@ int run_server(int sfd, struct config *config)
         for (int i = 0; i < n; ++i)
         {
             struct epoll_event *event = &events[i];
+
+            // Register incoming connection
             if (event->data.ptr == NULL)
             {
                 accept_and_register(epfd, sfd, config);
@@ -435,7 +457,6 @@ int run_server(int sfd, struct config *config)
             }
 
             struct connection *connection = event->data.ptr;
-
             // Error occured in event
             if (event->events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP))
             {
@@ -443,6 +464,7 @@ int run_server(int sfd, struct config *config)
                 continue;
             }
 
+            // Process received data
             if (event->events & EPOLLIN)
             {
                 int received = receive_client_data(config, connection);
