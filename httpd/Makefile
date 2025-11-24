@@ -1,6 +1,5 @@
 CC=gcc
 CFLAGS=-std=c99 -Werror -Wall -Wextra -Wvla -pedantic
-LDLIBS+= -lpthread
 SRCS=src/main.c src/config/config.c src/logger/logger.c src/server/server.c src/utils/string/string.c src/daemon/daemon.c \
 	 src/http/request_parser.c src/http/response_generator.c src/utils/file/file.c
 OBJS=$(SRCS:.c=.o)

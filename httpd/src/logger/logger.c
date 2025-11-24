@@ -48,6 +48,7 @@ void logger_log(const struct config *config, const char *message)
     fprintf(log_file, "%s [%s] %s\n", time_str, server_name, message);
 
     free(server_name);
+    fflush(log_file);
 }
 
 static const char *status_to_string(enum request_status status)
@@ -103,7 +104,7 @@ void logger_response(const struct config *config,
 
     if (request->status == BAD_REQUEST)
     {
-        sprintf(msg, "responded with %d to %s", request->status,
+        sprintf(msg, "responding with %d to %s", request->status,
                 client_ip->data);
     }
     else
@@ -112,7 +113,7 @@ void logger_response(const struct config *config,
             : request->method == HEAD         ? "HEAD"
                                               : "UNKNOWN";
 
-        sprintf(msg, "responded with %d to %s for %s on '%s'", request->status,
+        sprintf(msg, "responding with %d to %s for %s on '%s'", request->status,
                 client_ip->data, method,
                 request->filename ? request->filename->data : "/");
     }

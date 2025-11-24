@@ -136,14 +136,27 @@ static void parse_headers(struct string *request, size_t i,
 }
 
 static void parse_filename(struct string *request, size_t *i,
-                           struct request_header *req_header)
+                           struct request_header *req_header,
+                           const struct config *config)
 {
     size_t filename_len = get_filename_length(request->data, request->size, *i);
     if (filename_len == 0)
         req_header->status = BAD_REQUEST;
 
-    req_header->filename = string_create(request->data + *i, filename_len + 1);
-    req_header->filename->data[filename_len] = '\0';
+    req_header->filename = string_create(config->servers->root_dir,
+                                         strlen(config->servers->root_dir));
+    string_concat_str(req_header->filename, "/", 1);
+    string_concat_str(req_header->filename, request->data + *i, filename_len);
+
+    // If given target is a directory, append default file
+    if (req_header->filename->data[req_header->filename->size - 1] == '/')
+    {
+        string_concat_str(req_header->filename, config->servers->default_file,
+                          strlen(config->servers->default_file));
+    }
+
+    // Add null byte
+    string_concat_str(req_header->filename, "", 1);
     *i += filename_len;
 }
 
@@ -160,7 +173,8 @@ static void parse_version(struct string *request, size_t *i,
 }
 
 static size_t parse_start(struct string *request,
-                          struct request_header *req_header)
+                          struct request_header *req_header,
+                          const struct config *config)
 {
     size_t i = 0;
     req_header->method = get_method(request->data, request->size);
@@ -176,7 +190,7 @@ static size_t parse_start(struct string *request,
         || (request->data[i] == '\r' && request->data[i + 1] == '\n'))
         req_header->status = BAD_REQUEST;
 
-    parse_filename(request, &i, req_header);
+    parse_filename(request, &i, req_header, config);
 
     // Request line malformed
     if (i + 2 >= request->size || request->data[i++] != ' '
@@ -254,7 +268,7 @@ struct request_header *parse_request(struct string *request,
         calloc(1, sizeof(struct request_header));
 
     req_header->status = OK;
-    size_t i = parse_start(request, req_header);
+    size_t i = parse_start(request, req_header, config);
     if (req_header->status != OK)
         return req_header;
 

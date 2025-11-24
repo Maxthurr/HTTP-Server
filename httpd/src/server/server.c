@@ -213,13 +213,12 @@ static void handle_request(const struct config *config, struct string *request,
     logger_request(config, req_header, sender);
 
     // Get full file path from server root_directory
-    struct string *full_filename = get_fullname(config, req_header->filename);
     off_t content_length = 0;
 
     int fd = -1;
     if (req_header->status == OK)
     {
-        content_length = get_file_length(full_filename->data);
+        content_length = get_file_length(req_header->filename->data);
         if (content_length == -1)
         {
             req_header->status = NOT_FOUND;
@@ -227,7 +226,7 @@ static void handle_request(const struct config *config, struct string *request,
         }
         else if (req_header->method == GET)
         {
-            fd = open(full_filename->data, O_RDONLY);
+            fd = open(req_header->filename->data, O_RDONLY);
             if (fd == -1)
             {
                 req_header->status = FORBIDDEN;
@@ -235,8 +234,6 @@ static void handle_request(const struct config *config, struct string *request,
             }
         }
     }
-
-    string_destroy(full_filename);
 
     struct response_header *response =
         create_response(req_header, content_length);

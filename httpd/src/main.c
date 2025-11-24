@@ -125,7 +125,6 @@ int main(int argc, char **argv)
     case RESTART:
         restart_daemon(config);
         break;
-    case NO_OPTION:
     default:
         break;
     }
