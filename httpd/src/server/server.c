@@ -193,8 +193,15 @@ static void send_data(const struct config *config, int cfd, int fd,
         {
             ssize_t sent =
                 sendfile(cfd, fd, NULL, response->content_length - file_sent);
+
             if (sent == -1)
             {
+                // Ressource is temporarily unavailable, try again
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    continue; //! This is a very unoptimized way of doing and
+                              //! should be changed to use epoll to wait for
+                              //! availability again
+
                 logger_error(config, "sendfile()", strerror(errno));
                 break;
             }
@@ -470,10 +477,10 @@ int run_server(int sfd, struct config *config)
                     // Full request received
                     handle_request(config, connection->request,
                                    connection->sender, connection->fd);
-
-                    // Close connection after handling request
-                    close_connection(epfd, connection);
                 }
+
+                // Close connection after handling request
+                close_connection(epfd, connection);
             }
         }
     }
