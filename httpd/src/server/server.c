@@ -22,7 +22,7 @@
 #include "../utils/file/file.h"
 #include "../utils/string/string.h"
 
-#define MAX_EVENTS 64
+#define MAX_EVENTS 1024
 
 static struct config *g_config = NULL;
 static volatile sig_atomic_t shutdown_needed = false;
