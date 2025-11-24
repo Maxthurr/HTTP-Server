@@ -470,10 +470,10 @@ int run_server(int sfd, struct config *config)
                     // Full request received
                     handle_request(config, connection->request,
                                    connection->sender, connection->fd);
-                }
 
-                // Close connection after handling request
-                close_connection(epfd, connection);
+                    // Close connection after handling request
+                    close_connection(epfd, connection);
+                }
             }
         }
     }
