@@ -145,7 +145,6 @@ static void parse_filename(struct string *request, size_t *i,
 
     req_header->filename = string_create(config->servers->root_dir,
                                          strlen(config->servers->root_dir));
-    string_concat_str(req_header->filename, "/", 1);
     string_concat_str(req_header->filename, request->data + *i, filename_len);
 
     // If given target is a directory, append default file
@@ -216,7 +215,7 @@ static bool is_valid_host(const struct config *config, struct string *host)
         return false;
 
     // If host matches server_name
-    if (host->size + 1 == config->servers->server_name->size
+    if (host->size == config->servers->server_name->size
         && memcmp(host->data, config->servers->server_name->data, host->size)
             == 0)
         return true;
