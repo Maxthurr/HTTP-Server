@@ -11,3 +11,5 @@ httpd$
 *.so
 test_game
 *.log
+.venv
+__pycache__

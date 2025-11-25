@@ -17,6 +17,8 @@ static bool contains_substr(const char *buf, size_t n, const char *needle)
     return false;
 }
 
+TestSuite(response_generator);
+
 Test(response_generator, ok_response)
 {
     struct request_header request = { 0 };
@@ -65,7 +67,7 @@ Test(response_generator, bad_request)
     destroy_response(res);
 }
 
-Test(response_generator_more, various_status_strings)
+Test(response_generator, various_status_strings)
 {
     struct request_header request = { 0 };
 
@@ -107,7 +109,7 @@ Test(response_generator_more, various_status_strings)
     destroy_response(r4);
 }
 
-Test(response_generator_more, default_internal_server_error)
+Test(response_generator, default_internal_server_error)
 {
     struct request_header request = { 0 };
     request.status = 0;
@@ -120,7 +122,7 @@ Test(response_generator_more, default_internal_server_error)
     destroy_response(r);
 }
 
-Test(response_generator_more, date_contains_gmt_and_nonzero_length)
+Test(response_generator, date_contains_gmt_and_nonzero_length)
 {
     struct request_header request = { 0 };
     request.status = OK;
