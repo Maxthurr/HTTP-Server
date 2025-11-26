@@ -30,6 +30,7 @@ struct request_header
     enum http_method method;
     enum request_status status;
     struct string *filename;
+    struct string *target;
     struct string *version;
     struct string *host;
 };

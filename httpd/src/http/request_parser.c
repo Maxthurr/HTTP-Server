@@ -143,6 +143,7 @@ static void parse_filename(struct string *request, size_t *i,
     if (filename_len == 0)
         req_header->status = BAD_REQUEST;
 
+    req_header->target = string_create(request->data + *i, filename_len);
     req_header->filename = string_create(config->servers->root_dir,
                                          strlen(config->servers->root_dir));
     string_concat_str(req_header->filename, request->data + *i, filename_len);
@@ -290,6 +291,7 @@ void destroy_request(struct request_header *request)
 
     string_destroy(request->filename);
     string_destroy(request->version);
+    string_destroy(request->target);
     string_destroy(request->host);
     free(request);
 }

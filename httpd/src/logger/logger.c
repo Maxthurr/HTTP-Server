@@ -80,10 +80,13 @@ void logger_request(const struct config *config,
     char msg[512];
     if (request->status == OK)
     {
+        char *target = request->target
+            ? strndup(request->target->data, request->target->size)
+            : strdup("/");
         sprintf(msg, "received %s on '%s' from %s",
-                request->method == GET ? "GET" : "HEAD",
-                request->filename ? request->filename->data : "/",
+                request->method == GET ? "GET" : "HEAD", target,
                 client_ip->data);
+        free(target);
     }
     else
     {
@@ -109,13 +112,16 @@ void logger_response(const struct config *config,
     }
     else
     {
+        char *target = request->target
+            ? strndup(request->target->data, request->target->size)
+            : strdup("/");
         char *method = request->method == GET ? "GET"
             : request->method == HEAD         ? "HEAD"
                                               : "UNKNOWN";
 
         sprintf(msg, "responding with %d to %s for %s on '%s'", request->status,
-                client_ip->data, method,
-                request->filename ? request->filename->data : "/");
+                client_ip->data, method, target);
+        free(target);
     }
 
     logger_log(config, msg);
