@@ -37,7 +37,7 @@ static bool end_of_header(struct string *request, size_t index)
     return request->data[index] == '\r' && request->data[index + 1] == '\n';
 }
 
-static bool is_valid_field__name_char(char c)
+static bool is_valid_field_name_char(char c)
 {
     if (isalnum(c))
         return true;
@@ -71,7 +71,7 @@ static bool is_valid_header_line(struct string *request, size_t index)
     // A valid header line must contain a colon ':'
     while (index + 1 < request->size
            && !(data[index] == '\r' && data[index + 1] == '\n')
-           && is_valid_field__name_char(data[index]))
+           && is_valid_field_name_char(data[index]))
     {
         index++;
     }
@@ -84,6 +84,7 @@ static bool parse_host_field(struct string *request, size_t *index,
 {
     char *data = request->data;
     size_t i = *index + 5; // Skip field name "Host:"
+    size_t host_length = 0;
 
     // Skip spaces after colon
     while (i < request->size && (data[i] == ' ' || data[i] == '\t'))
@@ -91,14 +92,26 @@ static bool parse_host_field(struct string *request, size_t *index,
 
     size_t start = i;
     // Get length of host field value
-    while (i < request->size && !(data[i] == '\r' && data[i + 1] == '\n'))
+    while (i < request->size
+           && (is_valid_field_name_char(request->data[i]) || data[i] == ':')
+           && (data[i] != ' ' || data[i] != '\t'))
+        i++;
+
+    host_length = i - start;
+
+    // Skip spaces after colon
+    while (i < request->size && (data[i] == ' ' || data[i] == '\t'))
+        i++;
+
+    // Move to the end of the line
+    while (i + 1 < request->size && !(data[i] == '\r' && data[i + 1] == '\n'))
         i++;
 
     // Unfinished header
     if (i >= request->size)
         return false;
 
-    req_header->host = string_create(data + start, i - start);
+    req_header->host = string_create(data + start, host_length);
     return true;
 }
 
