@@ -100,14 +100,49 @@ void print_config(struct config *config)
     }
 }
 
+void print_help(void)
+{
+    puts("Usage: httpd [OPTIONS]\n");
+    puts("Options:");
+    puts("\t-h, --help\t\t\tDisplay this help message and exit");
+    puts("\t--pid_file <path>\t\tPath to PID file (required)");
+    puts("\t--log <true|false>\t\tEnable logging (default: true)");
+    puts("\t--log_file <path>\t\tPath to log file");
+    puts("\t--server_name <name>\t\tServer name (required)");
+    puts("\t--port <port>\t\t\tServer port (required)");
+    puts("\t--ip <address>\t\t\tServer IP address (required)");
+    puts("\t--root_dir <path>\t\tRoot directory for served files "
+         "(required)");
+    puts("\t--default_file <name>\t\tDefault file to search when none is "
+         "specified in\n\t\t\t\t\tquery (default: index.html)");
+    puts(
+        "\t--daemon <start|stop|restart>\tDaemon control option. Start "
+        "returns an error when a daemon with\n"
+        "\t\t\t\t\tthe given pid file is already running. If no\n"
+        "\t\t\t\t\tdaemon is running and stop is given, program does\n"
+        "\t\t\t\t\tnothing. If restart is given and no daemon is "
+        "running,\n\t\t\t\t\tthe program starts a new daemon without error.\n");
+    puts("Notes:");
+    puts("\tIf no log_file is specified and daemon option is used, "
+         "logging is enabled by default to 'HTTPd.log'.\n");
+}
+
 int main(int argc, char **argv)
 {
     if (!argc)
         return 1;
 
-    struct config *config = parse_configuration(argc, argv);
+    bool help_requested = false;
+    struct config *config = parse_configuration(argc, argv, &help_requested);
     if (!config)
+    {
+        if (help_requested)
+        {
+            print_help();
+            return 0;
+        }
         return 2;
+    }
 
     switch (config->daemon)
     {

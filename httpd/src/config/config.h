@@ -61,7 +61,8 @@ struct server_config
 ** @param argc Number of arguments
 ** @param argv A list of char * containing all the arguments
 */
-struct config *parse_configuration(int argc, char *argv[]);
+struct config *parse_configuration(int argc, char *argv[],
+                                   bool *help_requested);
 
 /*
 ** @brief Free the config struct

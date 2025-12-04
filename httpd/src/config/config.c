@@ -19,8 +19,11 @@ enum opt
     IP,
     ROOT_DIR,
     DEFAULT_FILE,
-    DAEMON
+    DAEMON,
+    HELP
 };
+
+static bool display_help = false;
 
 static bool handle_daemon(struct config *config, char *arg)
 {
@@ -47,7 +50,7 @@ static bool parse_options(int argc, char **argv, struct option *options,
                           struct config *config)
 {
     int c;
-    while ((c = getopt_long(argc, argv, "", options, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "h", options, NULL)) != -1)
     {
         switch (c)
         {
@@ -80,8 +83,12 @@ static bool parse_options(int argc, char **argv, struct option *options,
             if (!handle_daemon(config, optarg))
                 return false;
             break;
+        case HELP:
+        case 'h':
+            display_help = true;
+            return false;
+            break;
         default:
-        case '?':
             return false;
             break;
         }
@@ -90,7 +97,7 @@ static bool parse_options(int argc, char **argv, struct option *options,
     return true;
 }
 
-struct config *parse_configuration(int argc, char *argv[])
+struct config *parse_configuration(int argc, char *argv[], bool *help_requested)
 {
     struct option options[] = {
         { "pid_file", required_argument, NULL, PID_FILE },
@@ -102,6 +109,7 @@ struct config *parse_configuration(int argc, char *argv[])
         { "root_dir", required_argument, NULL, ROOT_DIR },
         { "default_file", required_argument, NULL, DEFAULT_FILE },
         { "daemon", required_argument, NULL, DAEMON },
+        { "help", no_argument, NULL, HELP }
     };
 
     struct config *config = calloc(1, sizeof(struct config));
@@ -112,6 +120,7 @@ struct config *parse_configuration(int argc, char *argv[])
         || !config->servers->server_name || !config->servers->port
         || !config->servers->ip || !config->servers->root_dir)
     {
+        *help_requested = display_help;
         config_destroy(config);
         return NULL;
     }
