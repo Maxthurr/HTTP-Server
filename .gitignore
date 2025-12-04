@@ -1,7 +1,7 @@
 tags
 *.o
 testsuite
-httpd$
+http-server
 *.out
 *.h.gch
 *.gcda

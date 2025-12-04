@@ -107,7 +107,8 @@ void print_help(void)
     puts("\t-h, --help\t\t\tDisplay this help message and exit");
     puts("\t--pid_file <path>\t\tAbsolute path to PID file (required)");
     puts("\t--log <true|false>\t\tEnable logging (default: true)");
-    puts("\t--log_file <path>\t\tRelative path to log file");
+    puts("\t--log_file <path>\t\tRelative path to log file (default: "
+         "HTTP.log if daemon option is used)");
     puts("\t--server_name <name>\t\tServer name (required)");
     puts("\t--port <port>\t\t\tServer port (required)");
     puts("\t--ip <address>\t\t\tServer IP address (required)");
